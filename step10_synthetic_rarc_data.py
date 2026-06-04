@@ -210,6 +210,13 @@ ACTION_NOTES = [
     "action: attach support if available",
     "status: analyst review recommended",
 ]
+REFERENCE_TERMS = [
+    "claim reference",
+    "review reference",
+    "case reference",
+    "prebill reference",
+    "audit reference",
+]
 
 
 def print_section(title):
@@ -269,6 +276,9 @@ def mutate_template(template, label, sequence_id):
         text = f"{text} ({context})"
     if random.random() < 0.45:
         text = f"{text} {random.choice(ACTION_NOTES)}."
+    # Guaranteed neutral uniqueness. The reference number is not category-coded,
+    # so it prevents duplicate synthetic text without leaking the label.
+    text = f"{text} [{random.choice(REFERENCE_TERMS)} REF{sequence_id:06d}]"
     return normalize_text(text)
 
 
