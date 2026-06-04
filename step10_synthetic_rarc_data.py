@@ -1,0 +1,435 @@
+"""
+STEP 10 - Synthetic RARC-Style Denial Text Dataset
+WellMind Data Solutions - Claim Denial Prediction System
+
+Run:
+    py step10_synthetic_rarc_data.py
+
+Purpose:
+Generate a balanced, reproducible synthetic text dataset for root-cause NLP
+classification using the Step 09 taxonomy.
+
+Important:
+This data is synthetic RARC-style training text. It is not real remittance
+data and should be replaced or augmented with real CARC/RARC denial text in a
+client deployment.
+"""
+
+from pathlib import Path
+import random
+import re
+import warnings
+
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+
+warnings.filterwarnings("ignore")
+
+
+BASE_DIR = Path(__file__).resolve().parent
+OUTPUT_DIR = BASE_DIR / "nlp_outputs"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+TAXONOMY_PATH = OUTPUT_DIR / "rarc_root_cause_taxonomy.csv"
+DATASET_PATH = OUTPUT_DIR / "rarc_denial_dataset.csv"
+TRAIN_PATH = OUTPUT_DIR / "rarc_train.csv"
+VAL_PATH = OUTPUT_DIR / "rarc_val.csv"
+TEST_PATH = OUTPUT_DIR / "rarc_test.csv"
+QUALITY_REPORT_PATH = OUTPUT_DIR / "rarc_dataset_quality_report.csv"
+CHART_PATH = OUTPUT_DIR / "rarc_data_stats.png"
+
+RANDOM_STATE = 42
+ROWS_PER_CATEGORY = 5_000
+TRAIN_SIZE = 0.70
+VAL_SIZE = 0.15
+TEST_SIZE = 0.15
+
+random.seed(RANDOM_STATE)
+np.random.seed(RANDOM_STATE)
+
+
+BASE_TEMPLATES = {
+    "eligibility": [
+        "Patient coverage was inactive on the date of service.",
+        "Member eligibility could not be verified for this claim.",
+        "Subscriber ID does not match active payer records.",
+        "Patient was not enrolled in the plan on the service date.",
+        "Coverage terminated before the submitted service was performed.",
+        "No active benefit record was found for this member.",
+        "The service date falls outside the patient's coverage period.",
+        "Plan records show the member was not eligible for benefits.",
+        "Coverage was suspended when the service was rendered.",
+        "Policy number was not valid for the submitted date of service.",
+    ],
+    "coding_error": [
+        "Procedure code is invalid for the submitted claim format.",
+        "Modifier is missing or inconsistent with the billed service.",
+        "Diagnosis code does not support the procedure code submitted.",
+        "The HCPCS code requires a more specific billing modifier.",
+        "Claim contains a code combination that requires correction.",
+        "Submitted CPT code is not valid for the provider specialty.",
+        "Procedure and diagnosis coding are inconsistent.",
+        "The code billed is not payable with the submitted modifier.",
+        "Claim line requires corrected coding before processing.",
+        "Coding edit indicates the billed service conflicts with payer rules.",
+    ],
+    "authorization": [
+        "Prior authorization was required but not found.",
+        "Authorization number is invalid for this service.",
+        "Referral was required before the service could be covered.",
+        "Pre-certification was not obtained before treatment.",
+        "Authorization expired before the date of service.",
+        "The approved authorization does not match the billed procedure.",
+        "Payer records do not show authorization for this claim.",
+        "Referral information is missing or incomplete.",
+        "The service exceeded the authorized number of visits.",
+        "Authorization was denied before claim submission.",
+    ],
+    "duplicate_claim": [
+        "This claim appears to duplicate a previously submitted claim.",
+        "Service was already billed for the same patient and date.",
+        "Duplicate claim line detected by payer processing rules.",
+        "A matching claim has already been paid.",
+        "The submitted service duplicates another claim in payer records.",
+        "Claim was previously processed with the same service details.",
+        "Duplicate submission identified for provider, patient, and date.",
+        "The claim line matches a prior paid or pending line.",
+        "Repeat billing detected for the same procedure.",
+        "Payer records show this service was already adjudicated.",
+    ],
+    "not_covered": [
+        "Service is not covered under the patient's benefit plan.",
+        "Procedure is excluded by payer coverage policy.",
+        "The billed service is considered non-covered for this plan.",
+        "Benefit limitations do not allow payment for this service.",
+        "Service is bundled into another payable procedure.",
+        "The plan does not cover this item in the submitted setting.",
+        "Coverage policy excludes the billed procedure.",
+        "The service is not a payable benefit for this member.",
+        "Payer policy identifies the service as investigational or excluded.",
+        "Claim denied because the benefit category does not cover this service.",
+    ],
+    "timely_filing": [
+        "Claim was received after the timely filing deadline.",
+        "Submission exceeded the payer's filing limit.",
+        "Corrected claim was submitted outside the allowed window.",
+        "Appeal or reconsideration request was not filed timely.",
+        "Proof of timely filing is required for review.",
+        "Claim filing period expired before payer receipt.",
+        "Payer received the claim after the contractual deadline.",
+        "Late submission prevents payment under plan rules.",
+        "The claim was not submitted within the required timeframe.",
+        "Timely filing limit was exceeded for this service.",
+    ],
+    "medical_necessity": [
+        "Documentation does not support medical necessity for the service.",
+        "Diagnosis submitted does not meet payer medical necessity criteria.",
+        "Service is not considered medically necessary for the reported condition.",
+        "Clinical criteria were not met for the billed procedure.",
+        "Payer policy does not support necessity based on submitted diagnosis.",
+        "The level of service is not supported by clinical information.",
+        "Medical necessity review determined the service was not justified.",
+        "Submitted information does not meet coverage determination criteria.",
+        "Procedure lacks clinical indication under payer guidelines.",
+        "Diagnosis and documentation do not justify the service.",
+    ],
+    "coordination_of_benefits": [
+        "Another payer is primary and must process the claim first.",
+        "Coordination of benefits information is missing or outdated.",
+        "Medicare secondary payer information is required.",
+        "Primary insurance payment details are needed before processing.",
+        "Payer order could not be determined from submitted information.",
+        "Claim requires updated other-insurance information.",
+        "Benefits must be coordinated with the patient's primary carrier.",
+        "Secondary payer cannot process without primary payer adjudication.",
+        "COB records indicate another plan has payment responsibility.",
+        "Other coverage information conflicts with payer records.",
+    ],
+    "documentation": [
+        "Medical records are required to support this claim.",
+        "Submitted documentation is incomplete for the billed service.",
+        "Operative note or clinical report is missing.",
+        "Additional documentation is needed before claim review can continue.",
+        "Required attachment was not included with the claim.",
+        "Documentation does not support the billed procedure details.",
+        "Payer requested records were not received.",
+        "Clinical notes are insufficient to validate the service.",
+        "Order, report, or supporting record is missing.",
+        "Claim lacks documentation required by payer policy.",
+    ],
+    "other": [
+        "Claim requires manual review due to payer processing rules.",
+        "Administrative issue prevented claim adjudication.",
+        "Provider enrollment or billing status requires review.",
+        "Claim format issue requires correction before payment.",
+        "Payer system returned a general processing denial.",
+        "Billing information could not be validated by payer.",
+        "Claim contains inconsistent administrative information.",
+        "Payer requested additional review before final adjudication.",
+        "Submission did not meet payer processing requirements.",
+        "Unclassified denial reason requires analyst review.",
+    ],
+}
+
+PATIENT_TERMS = ["patient", "member", "beneficiary", "subscriber", "claimant"]
+PAYER_TERMS = ["payer", "health plan", "carrier", "insurer", "Medicare contractor"]
+SERVICE_TERMS = ["service", "procedure", "claim line", "encounter", "treatment"]
+PREFIXES = [
+    "",
+    "Denial reason: ",
+    "Remark: ",
+    "Claim review note: ",
+    "Payer response: ",
+    "Adjudication message: ",
+]
+SUFFIXES = [
+    "",
+    " Please review before resubmission.",
+    " Correct and resubmit if appropriate.",
+    " Additional follow-up is required.",
+    " Route to the responsible RCM workqueue.",
+    " Validate supporting information before appeal.",
+]
+
+
+def print_section(title):
+    print("\n" + "=" * 75)
+    print(title)
+    print("=" * 75)
+
+
+def normalize_text(text):
+    text = re.sub(r"\s+", " ", str(text)).strip()
+    return text
+
+
+def load_taxonomy():
+    if not TAXONOMY_PATH.exists():
+        raise FileNotFoundError(
+            f"Missing {TAXONOMY_PATH}. Run step09_rarc_taxonomy.py first."
+        )
+    taxonomy = pd.read_csv(TAXONOMY_PATH)
+    required = {"label_id", "label", "display_name"}
+    missing = required - set(taxonomy.columns)
+    if missing:
+        raise ValueError(f"Taxonomy missing required columns: {sorted(missing)}")
+    return taxonomy.sort_values("label_id").reset_index(drop=True)
+
+
+def mutate_template(template):
+    text = template
+    replacements = {
+        r"\bPatient\b": random.choice(PATIENT_TERMS).capitalize(),
+        r"\bpatient\b": random.choice(PATIENT_TERMS),
+        r"\bMember\b": random.choice(PATIENT_TERMS).capitalize(),
+        r"\bmember\b": random.choice(PATIENT_TERMS),
+        r"\bPayer\b": random.choice(PAYER_TERMS).capitalize(),
+        r"\bpayer\b": random.choice(PAYER_TERMS),
+        r"\bservice\b": random.choice(SERVICE_TERMS),
+        r"\bService\b": random.choice(SERVICE_TERMS).capitalize(),
+    }
+    for pattern, replacement in replacements.items():
+        if random.random() < 0.45:
+            text = re.sub(pattern, replacement, text)
+
+    text = f"{random.choice(PREFIXES)}{text}{random.choice(SUFFIXES)}"
+    if random.random() < 0.18:
+        text = text.replace(".", ";")
+    if random.random() < 0.12:
+        text = text.upper() if random.random() < 0.35 else text.lower()
+    return normalize_text(text)
+
+
+def generate_category_rows(label_id, label, display_name, n_rows):
+    if label not in BASE_TEMPLATES:
+        raise KeyError(f"No templates configured for label: {label}")
+
+    rows = []
+    seen = set()
+    attempts = 0
+    max_attempts = n_rows * 20
+
+    while len(rows) < n_rows and attempts < max_attempts:
+        attempts += 1
+        template = random.choice(BASE_TEMPLATES[label])
+        text = mutate_template(template)
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            {
+                "text": text,
+                "label_id": int(label_id),
+                "label": label,
+                "display_name": display_name,
+                "source_type": "synthetic_rarc_style",
+            }
+        )
+
+    if len(rows) < n_rows:
+        raise RuntimeError(
+            f"Could only generate {len(rows):,} unique rows for {label}; requested {n_rows:,}."
+        )
+    return rows
+
+
+def make_quality_report(dataset, train_df, val_df, test_df):
+    split_counts = pd.DataFrame(
+        [
+            {"split": "full", "rows": len(dataset)},
+            {"split": "train", "rows": len(train_df)},
+            {"split": "validation", "rows": len(val_df)},
+            {"split": "test", "rows": len(test_df)},
+        ]
+    )
+
+    label_balance = (
+        dataset.groupby(["label_id", "label"])
+        .agg(rows=("text", "size"), unique_text=("text", "nunique"))
+        .reset_index()
+    )
+    label_balance["row_pct"] = (label_balance["rows"] / len(dataset) * 100).round(4)
+    duplicate_text_rows = int(dataset["text"].duplicated().sum())
+
+    quality_rows = [
+        {"metric": "total_rows", "value": len(dataset)},
+        {"metric": "unique_text_rows", "value": dataset["text"].nunique()},
+        {"metric": "duplicate_text_rows", "value": duplicate_text_rows},
+        {"metric": "labels", "value": dataset["label"].nunique()},
+        {"metric": "rows_per_category_target", "value": ROWS_PER_CATEGORY},
+        {"metric": "random_state", "value": RANDOM_STATE},
+        {"metric": "train_size", "value": len(train_df)},
+        {"metric": "validation_size", "value": len(val_df)},
+        {"metric": "test_size", "value": len(test_df)},
+        {"metric": "real_denial_text_used", "value": "No - synthetic RARC-style text"},
+    ]
+
+    try:
+        with pd.ExcelWriter(OUTPUT_DIR / "rarc_dataset_quality_report.xlsx") as writer:
+            pd.DataFrame(quality_rows).to_excel(writer, sheet_name="summary", index=False)
+            split_counts.to_excel(writer, sheet_name="splits", index=False)
+            label_balance.to_excel(writer, sheet_name="label_balance", index=False)
+    except Exception as exc:
+        print(f"Excel quality report skipped: {exc}")
+
+    report = pd.DataFrame(quality_rows)
+    report.to_csv(QUALITY_REPORT_PATH, index=False)
+    return report, label_balance
+
+
+def save_chart(label_balance, train_df, val_df, test_df):
+    split_frames = []
+    for split_name, split_df in [
+        ("train", train_df),
+        ("validation", val_df),
+        ("test", test_df),
+    ]:
+        temp = split_df["label"].value_counts().rename_axis("label").reset_index(name="rows")
+        temp["split"] = split_name
+        split_frames.append(temp)
+    split_balance = pd.concat(split_frames, ignore_index=True)
+
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    axes[0].barh(label_balance["label"], label_balance["rows"], color="#4E79A7")
+    axes[0].set_title("Synthetic RARC Rows by Root Cause")
+    axes[0].set_xlabel("Rows")
+
+    labels = sorted(split_balance["label"].unique())
+    x = np.arange(len(labels))
+    width = 0.25
+    colors = {"train": "#59A14F", "validation": "#F28E2B", "test": "#E15759"}
+    for i, split_name in enumerate(["train", "validation", "test"]):
+        values = [
+            int(split_balance.loc[
+                (split_balance["split"] == split_name) & (split_balance["label"] == label),
+                "rows",
+            ].sum())
+            for label in labels
+        ]
+        axes[1].bar(x + (i - 1) * width, values, width, label=split_name, color=colors[split_name])
+    axes[1].set_xticks(x)
+    axes[1].set_xticklabels(labels, rotation=45, ha="right")
+    axes[1].set_title("Train / Validation / Test Label Balance")
+    axes[1].set_ylabel("Rows")
+    axes[1].legend()
+
+    plt.tight_layout()
+    plt.savefig(CHART_PATH, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def main():
+    print_section("STEP 10 - SYNTHETIC RARC-STYLE DATASET")
+    taxonomy = load_taxonomy()
+    print(f"Loaded taxonomy: {len(taxonomy)} labels")
+
+    rows = []
+    for item in taxonomy.itertuples(index=False):
+        print(f"Generating {ROWS_PER_CATEGORY:,} rows for {item.label}...")
+        rows.extend(
+            generate_category_rows(
+                label_id=item.label_id,
+                label=item.label,
+                display_name=item.display_name,
+                n_rows=ROWS_PER_CATEGORY,
+            )
+        )
+
+    dataset = pd.DataFrame(rows)
+    dataset["text"] = dataset["text"].apply(normalize_text)
+    dataset = dataset.drop_duplicates(subset=["text"]).sample(frac=1, random_state=RANDOM_STATE).reset_index(drop=True)
+    dataset["text_length"] = dataset["text"].str.len()
+    dataset["word_count"] = dataset["text"].str.split().str.len()
+
+    print_section("DATASET QUALITY")
+    print(f"Rows: {len(dataset):,}")
+    print(f"Unique text: {dataset['text'].nunique():,}")
+    print("\nLabel counts:")
+    print(dataset["label"].value_counts().sort_index().to_string())
+
+    train_df, temp_df = train_test_split(
+        dataset,
+        train_size=TRAIN_SIZE,
+        stratify=dataset["label_id"],
+        random_state=RANDOM_STATE,
+    )
+    relative_val_size = VAL_SIZE / (VAL_SIZE + TEST_SIZE)
+    val_df, test_df = train_test_split(
+        temp_df,
+        train_size=relative_val_size,
+        stratify=temp_df["label_id"],
+        random_state=RANDOM_STATE,
+    )
+
+    train_df = train_df.reset_index(drop=True)
+    val_df = val_df.reset_index(drop=True)
+    test_df = test_df.reset_index(drop=True)
+
+    dataset.to_csv(DATASET_PATH, index=False)
+    train_df.to_csv(TRAIN_PATH, index=False)
+    val_df.to_csv(VAL_PATH, index=False)
+    test_df.to_csv(TEST_PATH, index=False)
+
+    quality_report, label_balance = make_quality_report(dataset, train_df, val_df, test_df)
+    save_chart(label_balance, train_df, val_df, test_df)
+
+    print_section("SAVED OUTPUTS")
+    print(f"Full dataset     : {DATASET_PATH}")
+    print(f"Train split      : {TRAIN_PATH}")
+    print(f"Validation split : {VAL_PATH}")
+    print(f"Test split       : {TEST_PATH}")
+    print(f"Quality report   : {QUALITY_REPORT_PATH}")
+    print(f"Chart            : {CHART_PATH}")
+
+    print("\nQuality summary:")
+    print(quality_report.to_string(index=False))
+    print("\nSTEP 10 COMPLETE")
+
+
+if __name__ == "__main__":
+    main()

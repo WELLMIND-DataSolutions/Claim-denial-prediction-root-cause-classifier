@@ -1,0 +1,40 @@
+# Virtual environments
+env/
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Large raw CMS data
+Medicare Physician & Other Practitioners - by Provider and Service/
+
+# Large generated datasets
+Medicare_Cleaned_Week1.csv
+Medicare_Cleaned_Credentials.csv
+Medicare_Cleaned_Outliers.csv
+Medicare_Cleaned_Encoded.csv
+test_predictions_sample.csv
+model_outputs/test_predictions_sample.csv
+nlp_outputs/rarc_denial_dataset.csv
+nlp_outputs/rarc_train.csv
+nlp_outputs/rarc_val.csv
+nlp_outputs/rarc_test.csv
+
+# Model binaries and large artifacts
+*.pkl
+*.joblib
+*.pt
+*.bin
+*.safetensors
+distilbert_denial_classifier/
+
+# Local system files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
