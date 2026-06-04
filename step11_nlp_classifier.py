@@ -74,17 +74,45 @@ except Exception:
 warnings.filterwarnings("ignore")
 
 
-BASE_DIR = Path(__file__).resolve().parent
-NLP_DIR = BASE_DIR / "nlp_outputs"
+IS_KAGGLE = Path("/kaggle/input").exists()
+
+# Works in .py scripts, notebooks, and Kaggle.
+try:
+    BASE_DIR = Path(__file__).resolve().parent
+except NameError:
+    BASE_DIR = Path.cwd()
+
+if IS_KAGGLE:
+    INPUT_ROOT = Path("/kaggle/input")
+    NLP_DIR = Path("/kaggle/working/nlp_outputs")
+else:
+    INPUT_ROOT = BASE_DIR / "nlp_outputs"
+    NLP_DIR = BASE_DIR / "nlp_outputs"
+
 MODEL_DIR = NLP_DIR / "models"
 CHART_DIR = NLP_DIR / "nlp_charts"
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 CHART_DIR.mkdir(parents=True, exist_ok=True)
 
-TRAIN_PATH = NLP_DIR / "rarc_train.csv"
-VAL_PATH = NLP_DIR / "rarc_val.csv"
-TEST_PATH = NLP_DIR / "rarc_test.csv"
-TAXONOMY_PATH = NLP_DIR / "rarc_root_cause_taxonomy.csv"
+def find_input_file(filename):
+    """Find an input file locally or inside Kaggle's mounted dataset folders."""
+    direct_path = INPUT_ROOT / filename
+    if direct_path.exists():
+        return direct_path
+
+    if INPUT_ROOT.exists():
+        matches = list(INPUT_ROOT.rglob(filename))
+        if matches:
+            return matches[0]
+
+    # Fallback for local runs where files are under nlp_outputs.
+    return BASE_DIR / "nlp_outputs" / filename
+
+
+TRAIN_PATH = find_input_file("rarc_train.csv")
+VAL_PATH = find_input_file("rarc_val.csv")
+TEST_PATH = find_input_file("rarc_test.csv")
+TAXONOMY_PATH = find_input_file("rarc_root_cause_taxonomy.csv")
 
 TFIDF_MODEL_PATH = MODEL_DIR / "tfidf_root_cause_classifier.pkl"
 DISTILBERT_MODEL_PATH = MODEL_DIR / "distilbert_root_cause_classifier"
