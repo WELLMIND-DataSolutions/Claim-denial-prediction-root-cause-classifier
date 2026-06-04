@@ -194,6 +194,22 @@ SUFFIXES = [
     " Route to the responsible RCM workqueue.",
     " Validate supporting information before appeal.",
 ]
+CLAIM_CONTEXTS = [
+    "DOS {dos}",
+    "claim line {line}",
+    "claim ID {claim_id}",
+    "encounter {encounter_id}",
+    "review batch {batch_id}",
+    "payer edit {edit_id}",
+]
+ACTION_NOTES = [
+    "workqueue: pre-bill review",
+    "action: verify before resubmission",
+    "action: route to denial prevention team",
+    "action: confirm payer rule",
+    "action: attach support if available",
+    "status: analyst review recommended",
+]
 
 
 def print_section(title):
@@ -220,7 +236,7 @@ def load_taxonomy():
     return taxonomy.sort_values("label_id").reset_index(drop=True)
 
 
-def mutate_template(template):
+def mutate_template(template, label, sequence_id):
     text = template
     replacements = {
         r"\bPatient\b": random.choice(PATIENT_TERMS).capitalize(),
@@ -241,6 +257,18 @@ def mutate_template(template):
         text = text.replace(".", ";")
     if random.random() < 0.12:
         text = text.upper() if random.random() < 0.35 else text.lower()
+    if random.random() < 0.75:
+        context = random.choice(CLAIM_CONTEXTS).format(
+            dos=f"2023-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}",
+            line=random.randint(1, 12),
+            claim_id=f"CLM{sequence_id:06d}",
+            encounter_id=f"ENC{random.randint(10000, 99999)}",
+            batch_id=f"B{random.randint(100, 999)}",
+            edit_id=f"{label[:3].upper()}-{random.randint(100, 999)}",
+        )
+        text = f"{text} ({context})"
+    if random.random() < 0.45:
+        text = f"{text} {random.choice(ACTION_NOTES)}."
     return normalize_text(text)
 
 
@@ -256,7 +284,7 @@ def generate_category_rows(label_id, label, display_name, n_rows):
     while len(rows) < n_rows and attempts < max_attempts:
         attempts += 1
         template = random.choice(BASE_TEMPLATES[label])
-        text = mutate_template(template)
+        text = mutate_template(template, label, attempts)
         key = text.lower()
         if key in seen:
             continue
