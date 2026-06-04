@@ -590,14 +590,48 @@ def save_predictions(test_df, id_to_label, best_result):
     pred_df.to_csv(TEST_PREDICTIONS_PATH, index=False)
 
 
-def save_model_card(comparison_df, best_result, overlap_report, id_to_label, quality_warnings):
+def summarize_sources(train_df, val_df, test_df):
+    combined = pd.concat(
+        [
+            train_df.assign(split="train"),
+            val_df.assign(split="validation"),
+            test_df.assign(split="test"),
+        ],
+        ignore_index=True,
+    )
+    if "source_type" not in combined.columns:
+        return {"source_type_available": False}
+
+    source_counts = (
+        combined.groupby(["split", "source_type"])
+        .size()
+        .reset_index(name="rows")
+        .to_dict(orient="records")
+    )
+    return {
+        "source_type_available": True,
+        "source_counts": source_counts,
+        "uses_official_rarc_descriptions": bool(
+            combined["source_type"].astype(str).str.contains("official_rarc", case=False, na=False).any()
+        ),
+    }
+
+
+def save_model_card(comparison_df, best_result, overlap_report, id_to_label, quality_warnings, source_summary):
+    uses_official_rarc = bool(source_summary.get("uses_official_rarc_descriptions", False))
     card = {
         "project": "WellMind denial root-cause NLP classifier",
         "task": "10-class synthetic RARC-style denial reason classification",
         "best_model": best_result["name"],
         "best_test_metrics": best_result["test_metrics"],
-        "data_source": "Synthetic RARC-style dataset generated from Step 09 taxonomy and Step 10 templates.",
+        "data_source": (
+            "Official X12 RARC descriptions augmented with synthetic claim-review context."
+            if uses_official_rarc
+            else "Synthetic RARC-style dataset generated from Step 09 taxonomy and Step 10 templates."
+        ),
+        "official_rarc_descriptions_used": uses_official_rarc,
         "real_denial_text_used": False,
+        "source_summary": source_summary,
         "labels": {str(k): v for k, v in id_to_label.items()},
         "leakage_check": overlap_report,
         "quality_warnings": quality_warnings,
@@ -608,8 +642,9 @@ def save_model_card(comparison_df, best_result, overlap_report, id_to_label, qua
         },
         "model_comparison": comparison_df.to_dict(orient="records"),
         "limitations": [
-            "Synthetic text is useful for demo/model plumbing, not a substitute for real payer remittance data.",
-            "Near-perfect metrics can occur because category-specific template language is easier than real payer remark text.",
+            "Official RARC descriptions improve terminology credibility but are still not real claim-level payer remittance records.",
+            "Synthetic claim-review context is useful for demo/model plumbing, not a substitute for real payer remittance data.",
+            "Near-perfect metrics can occur because category-specific RARC language can be easier than noisy real payer remark text.",
             "A production deployment should retrain or calibrate with real CARC/RARC remarks and adjudication outcomes.",
         ],
         "recommended_next_steps": [
@@ -650,6 +685,7 @@ def main():
     comparison_df = pd.DataFrame(comparison_rows).sort_values("test_f1_weighted", ascending=False)
     comparison_df.to_csv(MODEL_COMPARISON_PATH, index=False)
     quality_warnings = build_quality_warnings(comparison_df, overlap_report)
+    source_summary = summarize_sources(train_df, val_df, test_df)
 
     best_result = results[int(np.argmax([r["test_metrics"]["f1_weighted"] for r in results]))]
     save_predictions(test_df, id_to_label, best_result)
@@ -662,7 +698,7 @@ def main():
         f"Best NLP Model Confusion Matrix - {best_result['name']}",
     )
     save_metric_chart(comparison_df)
-    save_model_card(comparison_df, best_result, overlap_report, id_to_label, quality_warnings)
+    save_model_card(comparison_df, best_result, overlap_report, id_to_label, quality_warnings, source_summary)
 
     print_section("FINAL NLP SUMMARY")
     print(comparison_df.to_string(index=False))

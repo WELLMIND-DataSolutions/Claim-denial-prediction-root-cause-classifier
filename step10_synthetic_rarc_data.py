@@ -35,6 +35,7 @@ OUTPUT_DIR = BASE_DIR / "nlp_outputs"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 TAXONOMY_PATH = OUTPUT_DIR / "rarc_root_cause_taxonomy.csv"
+REAL_RARC_PATH = OUTPUT_DIR / "real_rarc_codes.csv"
 DATASET_PATH = OUTPUT_DIR / "rarc_denial_dataset.csv"
 TRAIN_PATH = OUTPUT_DIR / "rarc_train.csv"
 VAL_PATH = OUTPUT_DIR / "rarc_val.csv"
@@ -52,6 +53,24 @@ TYPO_NOISE_RATE = 0.08
 
 random.seed(RANDOM_STATE)
 np.random.seed(RANDOM_STATE)
+
+RARC_TO_CATEGORY = {
+    "eligibility": ["N30", "N103", "N216", "N425", "N619", "N819", "N912"],
+    "coding_error": ["M20", "M51", "M76", "M81", "M84", "N56", "N122", "N519", "N784", "N822", "N823", "N846"],
+    "authorization": ["M62", "N54", "N175", "N241", "N758", "N915"],
+    "duplicate_claim": ["M80", "M86", "N111", "N522", "N537", "N832", "N913"],
+    "not_covered": ["M2", "M28", "M37", "M82", "M83", "M89", "M90", "N30", "N383", "N425", "N428", "N429", "N567", "N569", "N789", "N808", "N906"],
+    "timely_filing": ["N892", "N921"],
+    "medical_necessity": ["M25", "M26", "M42", "N115", "N386", "N661", "N825"],
+    "coordination_of_benefits": ["MA04", "N8", "N23", "N32", "N155", "N177", "N360", "N420", "N854", "N891"],
+    "documentation": [
+        "M19", "M23", "M29", "M30", "M31", "M60", "M69", "M127", "N26", "N227", "N232", "N233",
+        "N234", "N236", "N237", "N240", "N393", "N394", "N395", "N396", "N705", "N706", "N707",
+        "N708", "N709", "N710", "N711", "N712", "N713", "N714", "N785", "N791", "N792", "N850",
+        "N893", "N896", "N897", "N899", "N900", "N901", "N902", "N903",
+    ],
+    "other": ["N104", "N130", "N210", "N211", "N381", "N387", "N433", "N438", "N790", "N802", "N803", "N831", "N836", "N852", "N880", "N887", "N920"],
+}
 
 
 BASE_TEMPLATES = {
@@ -279,6 +298,34 @@ def load_taxonomy():
     return taxonomy.sort_values("label_id").reset_index(drop=True)
 
 
+def load_real_rarc_template_lookup():
+    if not REAL_RARC_PATH.exists():
+        return {}, 0
+
+    real_rarc = pd.read_csv(REAL_RARC_PATH)
+    required = {"code", "description"}
+    missing = required - set(real_rarc.columns)
+    if missing:
+        raise ValueError(f"{REAL_RARC_PATH} missing required columns: {sorted(missing)}")
+
+    real_rarc = real_rarc.copy()
+    real_rarc["code"] = real_rarc["code"].astype(str).str.strip().str.upper()
+    real_rarc["description"] = real_rarc["description"].astype(str).map(normalize_text)
+    real_rarc = real_rarc[(real_rarc["code"] != "") & (real_rarc["description"] != "")]
+    code_to_description = dict(zip(real_rarc["code"], real_rarc["description"]))
+
+    lookup = {}
+    for label, codes in RARC_TO_CATEGORY.items():
+        templates = []
+        for code in codes:
+            description = code_to_description.get(code.upper())
+            if description:
+                templates.append(f"RARC {code.upper()}: {description}")
+        if templates:
+            lookup[label] = templates
+    return lookup, len(real_rarc)
+
+
 def mutate_template(template, label, sequence_id):
     text = template
     replacements = {
@@ -321,10 +368,13 @@ def mutate_template(template, label, sequence_id):
     return normalize_text(text)
 
 
-def generate_category_rows(label_id, label, display_name, n_rows):
-    if label not in BASE_TEMPLATES:
+def generate_category_rows(label_id, label, display_name, n_rows, template_lookup=None):
+    template_lookup = template_lookup or {}
+    if label not in BASE_TEMPLATES and label not in template_lookup:
         raise KeyError(f"No templates configured for label: {label}")
 
+    templates = template_lookup.get(label) or BASE_TEMPLATES[label]
+    source_type = "official_rarc_augmented" if label in template_lookup else "synthetic_rarc_style"
     rows = []
     seen = set()
     attempts = 0
@@ -332,7 +382,7 @@ def generate_category_rows(label_id, label, display_name, n_rows):
 
     while len(rows) < n_rows and attempts < max_attempts:
         attempts += 1
-        template = random.choice(BASE_TEMPLATES[label])
+        template = random.choice(templates)
         text = mutate_template(template, label, attempts)
         key = text.lower()
         if key in seen:
@@ -344,7 +394,7 @@ def generate_category_rows(label_id, label, display_name, n_rows):
                 "label_id": int(label_id),
                 "label": label,
                 "display_name": display_name,
-                "source_type": "synthetic_rarc_style",
+                "source_type": source_type,
             }
         )
 
@@ -355,7 +405,7 @@ def generate_category_rows(label_id, label, display_name, n_rows):
     return rows
 
 
-def make_quality_report(dataset, train_df, val_df, test_df):
+def make_quality_report(dataset, train_df, val_df, test_df, real_rarc_count, real_rarc_labels):
     split_counts = pd.DataFrame(
         [
             {"split": "full", "rows": len(dataset)},
@@ -382,10 +432,16 @@ def make_quality_report(dataset, train_df, val_df, test_df):
         {"metric": "random_state", "value": RANDOM_STATE},
         {"metric": "distractor_context_rate", "value": DISTRACTOR_CONTEXT_RATE},
         {"metric": "typo_noise_rate", "value": TYPO_NOISE_RATE},
+        {"metric": "real_rarc_csv_path", "value": str(REAL_RARC_PATH)},
+        {"metric": "real_rarc_codes_loaded", "value": real_rarc_count},
+        {"metric": "labels_using_real_rarc", "value": len(real_rarc_labels)},
         {"metric": "train_size", "value": len(train_df)},
         {"metric": "validation_size", "value": len(val_df)},
         {"metric": "test_size", "value": len(test_df)},
-        {"metric": "real_denial_text_used", "value": "No - synthetic RARC-style text"},
+        {
+            "metric": "real_denial_text_used",
+            "value": "Official RARC descriptions augmented with synthetic context" if real_rarc_labels else "No - synthetic RARC-style text",
+        },
     ]
 
     try:
@@ -445,7 +501,14 @@ def save_chart(label_balance, train_df, val_df, test_df):
 def main():
     print_section("STEP 10 - SYNTHETIC RARC-STYLE DATASET")
     taxonomy = load_taxonomy()
+    real_rarc_lookup, real_rarc_count = load_real_rarc_template_lookup()
+    real_rarc_labels = sorted(real_rarc_lookup)
     print(f"Loaded taxonomy: {len(taxonomy)} labels")
+    if real_rarc_lookup:
+        print(f"Loaded real RARC CSV: {real_rarc_count:,} codes")
+        print(f"Labels using real RARC descriptions: {real_rarc_labels}")
+    else:
+        print(f"Real RARC CSV not found at {REAL_RARC_PATH}; using synthetic templates.")
 
     rows = []
     for item in taxonomy.itertuples(index=False):
@@ -456,6 +519,7 @@ def main():
                 label=item.label,
                 display_name=item.display_name,
                 n_rows=ROWS_PER_CATEGORY,
+                template_lookup=real_rarc_lookup,
             )
         )
 
@@ -494,7 +558,14 @@ def main():
     val_df.to_csv(VAL_PATH, index=False)
     test_df.to_csv(TEST_PATH, index=False)
 
-    quality_report, label_balance = make_quality_report(dataset, train_df, val_df, test_df)
+    quality_report, label_balance = make_quality_report(
+        dataset,
+        train_df,
+        val_df,
+        test_df,
+        real_rarc_count=real_rarc_count,
+        real_rarc_labels=real_rarc_labels,
+    )
     save_chart(label_balance, train_df, val_df, test_df)
 
     print_section("SAVED OUTPUTS")
