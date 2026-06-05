@@ -76,21 +76,6 @@ The model concentrates high-risk claims into the top predicted risk groups.
 
 This means the billing team can focus review effort on the claims most likely to create payment problems.
 
-## Root-Cause Categories
-
-The NLP layer organizes denial reasons into operational categories:
-
-- eligibility
-- coding error
-- authorization
-- duplicate claim
-- not covered
-- timely filing
-- medical necessity
-- coordination of benefits
-- documentation
-- other administrative issues
-
 ## What Was Built
 
 - CMS data pipeline
