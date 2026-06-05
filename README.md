@@ -1,4 +1,4 @@
-# WellMind Data Solutions - Claim Denial Prediction & Root-Cause Classifier
+# Claim Denial Prediction & Root-Cause Classifier
 
 WellMind Data Solutions built an end-to-end healthcare revenue cycle analytics system that predicts claim denial or underpayment risk before submission and explains the likely reason.
 
