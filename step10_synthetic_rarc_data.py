@@ -1,18 +1,6 @@
 """
 STEP 10 - Synthetic RARC-Style Denial Text Dataset
 WellMind Data Solutions - Claim Denial Prediction System
-
-Run:
-    py step10_synthetic_rarc_data.py
-
-Purpose:
-Generate a balanced, reproducible synthetic text dataset for root-cause NLP
-classification using the Step 09 taxonomy.
-
-Important:
-This data is synthetic RARC-style training text. It is not real remittance
-data and should be replaced or augmented with real CARC/RARC denial text in a
-client deployment.
 """
 
 from pathlib import Path
@@ -29,7 +17,6 @@ from sklearn.model_selection import train_test_split
 
 warnings.filterwarnings("ignore")
 
-
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "nlp_outputs"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -44,7 +31,20 @@ QUALITY_REPORT_PATH = OUTPUT_DIR / "rarc_dataset_quality_report.csv"
 CHART_PATH = OUTPUT_DIR / "rarc_data_stats.png"
 
 RANDOM_STATE = 42
-ROWS_PER_CATEGORY = 5_000
+
+ROWS_PER_CATEGORY = {
+    "eligibility":                 150,
+    "authorization":               150,
+    "duplicate_claim":             150,
+    "medical_necessity":           150,
+    "timely_filing":               100,
+    "coding_error":                200,
+    "coordination_of_benefits":    200,
+    "not_covered":                 250,
+    "other":                       250,
+    "documentation":               400,
+}
+
 TRAIN_SIZE = 0.70
 VAL_SIZE = 0.15
 TEST_SIZE = 0.15
@@ -71,7 +71,6 @@ RARC_TO_CATEGORY = {
     ],
     "other": ["N104", "N130", "N210", "N211", "N381", "N387", "N433", "N438", "N790", "N802", "N803", "N831", "N836", "N852", "N880", "N887", "N920"],
 }
-
 
 BASE_TEMPLATES = {
     "eligibility": [
@@ -199,45 +198,11 @@ BASE_TEMPLATES = {
 PATIENT_TERMS = ["patient", "member", "beneficiary", "subscriber", "claimant"]
 PAYER_TERMS = ["payer", "health plan", "carrier", "insurer", "Medicare contractor"]
 SERVICE_TERMS = ["service", "procedure", "claim line", "encounter", "treatment"]
-PREFIXES = [
-    "",
-    "Denial reason: ",
-    "Remark: ",
-    "Claim review note: ",
-    "Payer response: ",
-    "Adjudication message: ",
-]
-SUFFIXES = [
-    "",
-    " Please review before resubmission.",
-    " Correct and resubmit if appropriate.",
-    " Additional follow-up is required.",
-    " Route to the responsible RCM workqueue.",
-    " Validate supporting information before appeal.",
-]
-CLAIM_CONTEXTS = [
-    "DOS {dos}",
-    "claim line {line}",
-    "claim ID {claim_id}",
-    "encounter {encounter_id}",
-    "review batch {batch_id}",
-    "payer edit {edit_id}",
-]
-ACTION_NOTES = [
-    "workqueue: pre-bill review",
-    "action: verify before resubmission",
-    "action: route to denial prevention team",
-    "action: confirm payer rule",
-    "action: attach support if available",
-    "status: analyst review recommended",
-]
-REFERENCE_TERMS = [
-    "claim reference",
-    "review reference",
-    "case reference",
-    "prebill reference",
-    "audit reference",
-]
+PREFIXES = ["", "Denial reason: ", "Remark: ", "Claim review note: ", "Payer response: ", "Adjudication message: "]
+SUFFIXES = ["", " Please review before resubmission.", " Correct and resubmit if appropriate.", " Additional follow-up is required.", " Route to the responsible RCM workqueue.", " Validate supporting information before appeal."]
+CLAIM_CONTEXTS = ["DOS {dos}", "claim line {line}", "claim ID {claim_id}", "encounter {encounter_id}", "review batch {batch_id}", "payer edit {edit_id}"]
+ACTION_NOTES = ["workqueue: pre-bill review", "action: verify before resubmission", "action: route to denial prevention team", "action: confirm payer rule", "action: attach support if available", "status: analyst review recommended"]
+REFERENCE_TERMS = ["claim reference", "review reference", "case reference", "prebill reference", "audit reference"]
 DISTRACTOR_CONTEXTS = [
     "Eligibility was checked separately, but the line still needs review.",
     "Coverage appears active, but another payer rule may still apply.",
@@ -251,45 +216,31 @@ DISTRACTOR_CONTEXTS = [
     "Medical necessity support may exist, but the claim needs final analyst review.",
 ]
 TYPO_REPLACEMENTS = {
-    "claim": "clm",
-    "service": "svc",
-    "authorization": "auth",
-    "documentation": "docs",
-    "procedure": "proc",
-    "diagnosis": "dx",
-    "medical": "med",
-    "benefit": "bnft",
+    "claim": "clm", "service": "svc", "authorization": "auth", "documentation": "docs",
+    "procedure": "proc", "diagnosis": "dx", "medical": "med", "benefit": "bnft",
 }
-
 
 def print_section(title):
     print("\n" + "=" * 75)
     print(title)
     print("=" * 75)
 
-
 def normalize_text(text):
     text = re.sub(r"\s+", " ", str(text)).strip()
     return text
 
-
 def add_typo_noise(text):
-    """Add light billing-note shorthand without encoding the target label."""
     if random.random() >= TYPO_NOISE_RATE:
         return text
-
     candidates = [word for word in TYPO_REPLACEMENTS if re.search(rf"\b{word}\b", text, flags=re.IGNORECASE)]
     if not candidates:
         return text
     word = random.choice(candidates)
     return re.sub(rf"\b{word}\b", TYPO_REPLACEMENTS[word], text, count=1, flags=re.IGNORECASE)
 
-
 def load_taxonomy():
     if not TAXONOMY_PATH.exists():
-        raise FileNotFoundError(
-            f"Missing {TAXONOMY_PATH}. Run step09_rarc_taxonomy.py first."
-        )
+        raise FileNotFoundError(f"Missing {TAXONOMY_PATH}. Run step09_rarc_taxonomy.py first.")
     taxonomy = pd.read_csv(TAXONOMY_PATH)
     required = {"label_id", "label", "display_name"}
     missing = required - set(taxonomy.columns)
@@ -297,34 +248,29 @@ def load_taxonomy():
         raise ValueError(f"Taxonomy missing required columns: {sorted(missing)}")
     return taxonomy.sort_values("label_id").reset_index(drop=True)
 
-
 def load_real_rarc_template_lookup():
     if not REAL_RARC_PATH.exists():
         return {}, 0
-
     real_rarc = pd.read_csv(REAL_RARC_PATH)
     required = {"code", "description"}
     missing = required - set(real_rarc.columns)
     if missing:
         raise ValueError(f"{REAL_RARC_PATH} missing required columns: {sorted(missing)}")
-
     real_rarc = real_rarc.copy()
     real_rarc["code"] = real_rarc["code"].astype(str).str.strip().str.upper()
     real_rarc["description"] = real_rarc["description"].astype(str).map(normalize_text)
     real_rarc = real_rarc[(real_rarc["code"] != "") & (real_rarc["description"] != "")]
     code_to_description = dict(zip(real_rarc["code"], real_rarc["description"]))
-
     lookup = {}
     for label, codes in RARC_TO_CATEGORY.items():
         templates = []
         for code in codes:
             description = code_to_description.get(code.upper())
             if description:
-                templates.append(f"RARC {code.upper()}: {description}")
+                templates.append(description)
         if templates:
             lookup[label] = templates
     return lookup, len(real_rarc)
-
 
 def mutate_template(template, label, sequence_id):
     text = template
@@ -341,7 +287,6 @@ def mutate_template(template, label, sequence_id):
     for pattern, replacement in replacements.items():
         if random.random() < 0.45:
             text = re.sub(pattern, replacement, text)
-
     text = f"{random.choice(PREFIXES)}{text}{random.choice(SUFFIXES)}"
     if random.random() < 0.18:
         text = text.replace(".", ";")
@@ -362,59 +307,73 @@ def mutate_template(template, label, sequence_id):
     if random.random() < DISTRACTOR_CONTEXT_RATE:
         text = f"{text} {random.choice(DISTRACTOR_CONTEXTS)}"
     text = add_typo_noise(text)
-    # Guaranteed neutral uniqueness. The reference number is not category-coded,
-    # so it prevents duplicate synthetic text without leaking the label.
     text = f"{text} [{random.choice(REFERENCE_TERMS)} REF{sequence_id:06d}]"
     return normalize_text(text)
 
+def mutate_real_description(template, sequence_id):
+    text = template
+    replacements = {
+        r"\bPatient\b": random.choice(PATIENT_TERMS).capitalize(),
+        r"\bpatient\b": random.choice(PATIENT_TERMS),
+        r"\bMember\b": random.choice(PATIENT_TERMS).capitalize(),
+        r"\bmember\b": random.choice(PATIENT_TERMS),
+        r"\bPayer\b": random.choice(PAYER_TERMS).capitalize(),
+        r"\bpayer\b": random.choice(PAYER_TERMS),
+        r"\bservice\b": random.choice(SERVICE_TERMS),
+        r"\bService\b": random.choice(SERVICE_TERMS).capitalize(),
+    }
+    for pattern, replacement in replacements.items():
+        if random.random() < 0.45:
+            text = re.sub(pattern, replacement, text)
+    return normalize_text(text)
 
 def generate_category_rows(label_id, label, display_name, n_rows, template_lookup=None):
     template_lookup = template_lookup or {}
     if label not in BASE_TEMPLATES and label not in template_lookup:
         raise KeyError(f"No templates configured for label: {label}")
-
-    templates = template_lookup.get(label) or BASE_TEMPLATES[label]
-    source_type = "official_rarc_augmented" if label in template_lookup else "synthetic_rarc_style"
+    real_templates = template_lookup.get(label, [])
+    synthetic_templates = BASE_TEMPLATES.get(label, [])
+    has_real = len(real_templates) > 0
+    all_templates = real_templates + synthetic_templates
+    if not all_templates:
+        raise KeyError(f"No templates configured for label: {label}")
     rows = []
     seen = set()
     attempts = 0
-    max_attempts = n_rows * 20
-
+    max_attempts = n_rows * 50
     while len(rows) < n_rows and attempts < max_attempts:
         attempts += 1
-        template = random.choice(templates)
-        text = mutate_template(template, label, attempts)
+        if has_real and random.random() < 0.60:
+            template = random.choice(real_templates)
+            text = mutate_real_description(template, attempts)
+            source_type = "official_rarc"
+        else:
+            template = random.choice(synthetic_templates)
+            text = mutate_template(template, label, attempts)
+            source_type = "synthetic_rarc_style"
         key = text.lower()
         if key in seen:
             continue
         seen.add(key)
-        rows.append(
-            {
-                "text": text,
-                "label_id": int(label_id),
-                "label": label,
-                "display_name": display_name,
-                "source_type": source_type,
-            }
-        )
-
-    if len(rows) < n_rows:
-        raise RuntimeError(
-            f"Could only generate {len(rows):,} unique rows for {label}; requested {n_rows:,}."
-        )
+        rows.append({
+            "text": text,
+            "label_id": int(label_id),
+            "label": label,
+            "display_name": display_name,
+            "source_type": source_type,
+        })
+    actual = len(rows)
+    if actual < n_rows:
+        print(f"  WARNING: Only generated {actual}/{n_rows} rows for {label}")
     return rows
 
-
 def make_quality_report(dataset, train_df, val_df, test_df, real_rarc_count, real_rarc_labels):
-    split_counts = pd.DataFrame(
-        [
-            {"split": "full", "rows": len(dataset)},
-            {"split": "train", "rows": len(train_df)},
-            {"split": "validation", "rows": len(val_df)},
-            {"split": "test", "rows": len(test_df)},
-        ]
-    )
-
+    split_counts = pd.DataFrame([
+        {"split": "full", "rows": len(dataset)},
+        {"split": "train", "rows": len(train_df)},
+        {"split": "validation", "rows": len(val_df)},
+        {"split": "test", "rows": len(test_df)},
+    ])
     label_balance = (
         dataset.groupby(["label_id", "label"])
         .agg(rows=("text", "size"), unique_text=("text", "nunique"))
@@ -422,13 +381,12 @@ def make_quality_report(dataset, train_df, val_df, test_df, real_rarc_count, rea
     )
     label_balance["row_pct"] = (label_balance["rows"] / len(dataset) * 100).round(4)
     duplicate_text_rows = int(dataset["text"].duplicated().sum())
-
     quality_rows = [
         {"metric": "total_rows", "value": len(dataset)},
         {"metric": "unique_text_rows", "value": dataset["text"].nunique()},
         {"metric": "duplicate_text_rows", "value": duplicate_text_rows},
         {"metric": "labels", "value": dataset["label"].nunique()},
-        {"metric": "rows_per_category_target", "value": ROWS_PER_CATEGORY},
+        {"metric": "rows_per_category_target", "value": str(ROWS_PER_CATEGORY)},
         {"metric": "random_state", "value": RANDOM_STATE},
         {"metric": "distractor_context_rate", "value": DISTRACTOR_CONTEXT_RATE},
         {"metric": "typo_noise_rate", "value": TYPO_NOISE_RATE},
@@ -438,12 +396,8 @@ def make_quality_report(dataset, train_df, val_df, test_df, real_rarc_count, rea
         {"metric": "train_size", "value": len(train_df)},
         {"metric": "validation_size", "value": len(val_df)},
         {"metric": "test_size", "value": len(test_df)},
-        {
-            "metric": "real_denial_text_used",
-            "value": "Official RARC descriptions augmented with synthetic context" if real_rarc_labels else "No - synthetic RARC-style text",
-        },
+        {"metric": "real_denial_text_used", "value": "Official RARC descriptions augmented with synthetic context" if real_rarc_labels else "No - synthetic RARC-style text"},
     ]
-
     try:
         with pd.ExcelWriter(OUTPUT_DIR / "rarc_dataset_quality_report.xlsx") as writer:
             pd.DataFrame(quality_rows).to_excel(writer, sheet_name="summary", index=False)
@@ -451,52 +405,36 @@ def make_quality_report(dataset, train_df, val_df, test_df, real_rarc_count, rea
             label_balance.to_excel(writer, sheet_name="label_balance", index=False)
     except Exception as exc:
         print(f"Excel quality report skipped: {exc}")
-
     report = pd.DataFrame(quality_rows)
     report.to_csv(QUALITY_REPORT_PATH, index=False)
     return report, label_balance
 
-
 def save_chart(label_balance, train_df, val_df, test_df):
     split_frames = []
-    for split_name, split_df in [
-        ("train", train_df),
-        ("validation", val_df),
-        ("test", test_df),
-    ]:
+    for split_name, split_df in [("train", train_df), ("validation", val_df), ("test", test_df)]:
         temp = split_df["label"].value_counts().rename_axis("label").reset_index(name="rows")
         temp["split"] = split_name
         split_frames.append(temp)
     split_balance = pd.concat(split_frames, ignore_index=True)
-
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
     axes[0].barh(label_balance["label"], label_balance["rows"], color="#4E79A7")
     axes[0].set_title("Synthetic RARC Rows by Root Cause")
     axes[0].set_xlabel("Rows")
-
     labels = sorted(split_balance["label"].unique())
     x = np.arange(len(labels))
     width = 0.25
     colors = {"train": "#59A14F", "validation": "#F28E2B", "test": "#E15759"}
     for i, split_name in enumerate(["train", "validation", "test"]):
-        values = [
-            int(split_balance.loc[
-                (split_balance["split"] == split_name) & (split_balance["label"] == label),
-                "rows",
-            ].sum())
-            for label in labels
-        ]
+        values = [int(split_balance.loc[(split_balance["split"] == split_name) & (split_balance["label"] == label), "rows"].sum()) for label in labels]
         axes[1].bar(x + (i - 1) * width, values, width, label=split_name, color=colors[split_name])
     axes[1].set_xticks(x)
     axes[1].set_xticklabels(labels, rotation=45, ha="right")
     axes[1].set_title("Train / Validation / Test Label Balance")
     axes[1].set_ylabel("Rows")
     axes[1].legend()
-
     plt.tight_layout()
     plt.savefig(CHART_PATH, dpi=150, bbox_inches="tight")
     plt.close()
-
 
 def main():
     print_section("STEP 10 - SYNTHETIC RARC-STYLE DATASET")
@@ -512,16 +450,20 @@ def main():
 
     rows = []
     for item in taxonomy.itertuples(index=False):
-        print(f"Generating {ROWS_PER_CATEGORY:,} rows for {item.label}...")
+        n_rows = ROWS_PER_CATEGORY.get(item.label, 200)  # ← FIXED: Pehle n_rows lo
+        print(f"Generating {n_rows:,} rows for {item.label}...")  # ← FIXED: n_rows print karo
         rows.extend(
             generate_category_rows(
                 label_id=item.label_id,
                 label=item.label,
                 display_name=item.display_name,
-                n_rows=ROWS_PER_CATEGORY,
+                n_rows=n_rows,
                 template_lookup=real_rarc_lookup,
             )
         )
+
+    if not rows:
+        raise ValueError("No rows generated! Check ROWS_PER_CATEGORY and templates.")
 
     dataset = pd.DataFrame(rows)
     dataset["text"] = dataset["text"].apply(normalize_text)
@@ -535,18 +477,21 @@ def main():
     print("\nLabel counts:")
     print(dataset["label"].value_counts().sort_index().to_string())
 
+    min_rows = dataset["label_id"].value_counts().min()
+    if min_rows < 3:
+        print(f"  WARNING: Some classes have fewer than 3 rows — disabling stratify for split.")
+        stratify_col = None
+    else:
+        stratify_col = dataset["label_id"]
+
     train_df, temp_df = train_test_split(
-        dataset,
-        train_size=TRAIN_SIZE,
-        stratify=dataset["label_id"],
-        random_state=RANDOM_STATE,
+        dataset, train_size=TRAIN_SIZE, stratify=stratify_col, random_state=RANDOM_STATE
     )
     relative_val_size = VAL_SIZE / (VAL_SIZE + TEST_SIZE)
+    min_temp = temp_df["label_id"].value_counts().min()
+    stratify_temp = temp_df["label_id"] if min_temp >= 2 else None
     val_df, test_df = train_test_split(
-        temp_df,
-        train_size=relative_val_size,
-        stratify=temp_df["label_id"],
-        random_state=RANDOM_STATE,
+        temp_df, train_size=relative_val_size, stratify=stratify_temp, random_state=RANDOM_STATE
     )
 
     train_df = train_df.reset_index(drop=True)
@@ -559,12 +504,7 @@ def main():
     test_df.to_csv(TEST_PATH, index=False)
 
     quality_report, label_balance = make_quality_report(
-        dataset,
-        train_df,
-        val_df,
-        test_df,
-        real_rarc_count=real_rarc_count,
-        real_rarc_labels=real_rarc_labels,
+        dataset, train_df, val_df, test_df, real_rarc_count, real_rarc_labels
     )
     save_chart(label_balance, train_df, val_df, test_df)
 
@@ -575,11 +515,9 @@ def main():
     print(f"Test split       : {TEST_PATH}")
     print(f"Quality report   : {QUALITY_REPORT_PATH}")
     print(f"Chart            : {CHART_PATH}")
-
     print("\nQuality summary:")
     print(quality_report.to_string(index=False))
     print("\nSTEP 10 COMPLETE")
-
 
 if __name__ == "__main__":
     main()
