@@ -12,3 +12,11 @@ openpyxl
 xlrd
 torch
 transformers
+fastapi
+uvicorn[standard]
+pydantic
+streamlit
+plotly
+requests
+joblib
+
