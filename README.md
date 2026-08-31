@@ -116,20 +116,3 @@ The app starts:
 python scripts\sample_api_request.py
 ```
 
-**Main endpoints:**
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/health` | Health check |
-| POST | `/predict/denial-risk` | Denial risk prediction |
-| POST | `/predict/root-cause` | Root-cause classification |
-| POST | `/predict/full` | End-to-end prediction (risk + root cause) |
-
----
-
-## Important Notes
-
-- This is a portfolio demonstration, not a production billing system.
-- The denial label is a documented proxy, since CMS public PUF data does not include real payer denial outcomes.
-- The NLP training data combines official RARC descriptions with synthetic RARC-style examples.
-- This project should not be used to process PHI or make real coverage/payment decisions.
