@@ -6,7 +6,7 @@ An end-to-end healthcare Revenue Cycle Management system that predicts claim den
 
 ### Workflow Diagram
 
-![Claim Denial Prediction Workflow](assets/workflow-diagram.png)
+![Claim Denial Prediction Workflow](workflow-diagram.png)
 
 </div>
 
@@ -38,14 +38,14 @@ It combines structured CMS Medicare provider-service data with an X12 RARC-style
 ### Claim Denial Predictor — Input
 *Provider info, utilization sliders, denial remark text, and risk flags feed the model.*
 
-<img src="assets/predictor-empty.png" alt="Claim Denial Predictor Input" width="720" />
+<img src="predictor-empty.png" alt="Claim Denial Predictor Input" width="720" />
 
 <br /><br />
 
 ### Claim Denial Predictor — Result
 *Denial probability gauge, risk tier, and root-cause classification with a recommended fix.*
 
-<img src="assets/predictor-result.png" alt="Claim Denial Predictor Result" width="720" />
+<img src="predictor-result.png" alt="Claim Denial Predictor Result" width="720" />
 
 </div>
 
