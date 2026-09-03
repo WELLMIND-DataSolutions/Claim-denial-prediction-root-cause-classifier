@@ -91,28 +91,3 @@ No PHI or patient-level records are used.
 **Root-cause NLP pipeline** (`src/step09` – `step11`): builds the RARC-style taxonomy and synthetic training text, then trains and compares TF-IDF and DistilBERT classifiers.
 
 ---
-
-## Run Locally
-
-```powershell
-# Set up the environment
-.\setup_project.ps1
-
-# Run the full pipeline
-.\run_pipeline.ps1
-
-# Start the demo app
-.\run_app.ps1
-```
-
-The app starts:
-- FastAPI: `http://localhost:8000`
-- Swagger docs: `http://localhost:8000/docs`
-- Streamlit dashboard: launched by Streamlit
-
-**API smoke test** (after starting the API):
-
-```powershell
-python scripts\sample_api_request.py
-```
-
