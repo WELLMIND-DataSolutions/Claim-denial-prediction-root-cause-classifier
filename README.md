@@ -56,7 +56,7 @@ It combines structured CMS Medicare provider-service data with an X12 RARC-style
 ```
 .
 ├── app/                 FastAPI service and Streamlit dashboard
-├── src/                 Step-by-step data, ML, and NLP pipeline scripts
+├── src/                 ML, and NLP pipeline scripts
 ├── reports/             EDA, cleaning, feature, and modeling summary CSVs
 ├── outputs/              Lightweight NLP datasets, metrics, and charts
 ├── docs/                 Model cards, target definition, and full report
@@ -84,10 +84,10 @@ No PHI or patient-level records are used.
 
 ## Pipeline
 
-**Data preprocessing** (`src/step01` – `step07`): loads and profiles the raw CMS data, audits nulls and duplicates, cleans and encodes it, and defines the denial proxy target.
+**Data preprocessing**: loads and profiles the raw CMS data, audits nulls and duplicates, cleans and encodes it, and defines the denial proxy target.
 
-**Denial risk modeling** (`src/step08_model.py`): train/validation/test split, class imbalance handling, baseline vs. boosted tree comparison, Optuna tuning, threshold review, SHAP-style feature importance, and a bias/overfit audit.
+**Denial risk modeling**: train/validation/test split, class imbalance handling, baseline vs. boosted tree comparison, Optuna tuning, threshold review, SHAP-style feature importance, and a bias/overfit audit.
 
-**Root-cause NLP pipeline** (`src/step09` – `step11`): builds the RARC-style taxonomy and synthetic training text, then trains and compares TF-IDF and DistilBERT classifiers.
+**Root-cause NLP pipeline** : builds the RARC-style taxonomy and synthetic training text, then trains and compares TF-IDF and DistilBERT classifiers.
 
 ---
