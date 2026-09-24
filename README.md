@@ -43,15 +43,6 @@ It combines structured CMS Medicare provider-service data with an X12 RARC-style
 
 ---
 
-## Benefit
-
-- **Fewer denials reach submission** — flagging high-risk claims beforehand lets billing teams intervene before revenue is lost
-- **Faster root-cause resolution** — denial remarks are automatically routed to the right operational category instead of being triaged manually
-- **Actionable, not just predictive** — every output comes with a recommended fix, so teams know what to do next, not just what went wrong
-- **Transparent decisions** — SHAP-based explainability means risk scores can be justified and trusted rather than treated as a black box
-- **Scales across claim volume** — a live API and dashboard let the same pipeline support high claim throughput without added manual review effort
-
----
 
 ## Application Screenshots
 
@@ -73,22 +64,15 @@ It combines structured CMS Medicare provider-service data with an X12 RARC-style
 
 ---
 
-## Data Sources
 
-- CMS Medicare Physician & Other Practitioners by Provider and Service public use data
-- X12 Remittance Advice Remark Code descriptions
-- Synthetic RARC-style denial text generated from the documented taxonomy
+## Benefit
 
-No PHI or patient-level records are used.
-
----
-
-## Pipeline
-
-**Data preprocessing**: loads and profiles the raw CMS data, audits nulls and duplicates, cleans and encodes it, and defines the denial proxy target.
-
-**Denial risk modeling**: train/validation/test split, class imbalance handling, baseline vs. boosted tree comparison, Optuna tuning, threshold review, SHAP-style feature importance, and a bias/overfit audit.
-
-**Root-cause NLP pipeline**: builds the RARC-style taxonomy and synthetic training text, then trains and compares TF-IDF and DistilBERT classifiers.
+- **Fewer denials reach submission** — flagging high-risk claims beforehand lets billing teams intervene before revenue is lost
+- **Faster root-cause resolution** — denial remarks are automatically routed to the right operational category instead of being triaged manually
+- **Actionable, not just predictive** — every output comes with a recommended fix, so teams know what to do next, not just what went wrong
+- **Transparent decisions** — SHAP-based explainability means risk scores can be justified and trusted rather than treated as a black box
+- **Scales across claim volume** — a live API and dashboard let the same pipeline support high claim throughput without added manual review effort
 
 ---
+
+
