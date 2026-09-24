@@ -4,12 +4,11 @@
 
 
 <p align="center">
-  ## Live Demo
   <a href="https://claim-denial-prediction-root-cause-nine.vercel.app/">
     <strong>Live Demo</strong>
   </a>
 </p>
----
+
 
 ![Claim Denial Prediction Workflow](workflow-diagram.png)
 
