@@ -4,7 +4,6 @@
 
 An end-to-end healthcare Revenue Cycle Management system that predicts claim denial risk and classifies denial remark text into operational root-cause categories.
 
-### Workflow Diagram
 
 ![Claim Denial Prediction Workflow](workflow-diagram.png)
 
@@ -20,8 +19,12 @@ It combines structured CMS Medicare provider-service data with an X12 RARC-style
 
 ---
 ## Live Demo
-https://claim-denial-prediction-root-cause-nine.vercel.app/
 
+<p align="center">
+  <a href="https://claim-denial-prediction-root-cause-nine.vercel.app/">
+    <strong>Live Demo</strong>
+  </a>
+</p>
 ---
 ## Key Features
 
