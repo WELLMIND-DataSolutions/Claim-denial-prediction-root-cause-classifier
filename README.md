@@ -1,97 +1,61 @@
 <div align="center">
+Claim Denial Prediction and Root Cause Classifier
+<p align="center"> <a href="https://claim-denial-prediction-root-cause-nine.vercel.app/"> <strong>Live Demo</strong> </a> </p>
 
-# Claim Denial Prediction and Root Cause Classifier
-
-
-<p align="center">
-  <a href="https://claim-denial-prediction-root-cause-nine.vercel.app/">
-    <strong>Live Demo</strong>
-  </a>
-</p>
-
-
-![Claim Denial Prediction Workflow](workflow-diagram.png)
+Show Image
 
 </div>
-
----
-
-## Overview
+Overview
 
 Healthcare billing teams lose time and revenue when claims are denied after submission. This project brings that check earlier — before a claim is submitted, it estimates the probability of denial and, if a denial remark is provided, classifies the likely operational root cause with a recommended first-pass fix.
 
 It combines structured CMS Medicare provider-service data with an X12 RARC-style NLP dataset, so billing teams can flag high-risk claims and route denial reasons to the right team before they become a loss.
 
----
-
-## Key Features
-
-- **Denial risk prediction** — a boosted tree model trained on CMS Medicare provider-service data, tuned with Optuna, returning a 0–100% denial probability
-- **Risk tiering** — predictions are grouped into low, medium, and high risk using optimized probability thresholds
-- **Root-cause classification** — an NLP classifier (TF-IDF and DistilBERT compared) maps denial remark text to an X12 RARC-style taxonomy
-- **Explainability** — SHAP-based top feature drivers for every denial risk prediction
-- **First-pass remediation** — each root-cause classification comes with a recommended fix and confidence score
-- **FastAPI + Streamlit** — a live API backend and an interactive dashboard for entering claim details and reviewing results
-
----
-
-## Application Screenshots
-
+Aim
+Estimate the probability of denial for a claim before it is submitted, not after
+Classify the operational root cause of a denial from remark text using an X12 RARC-style taxonomy
+Group predictions into clear risk tiers so billing teams can prioritize what to review first
+Explain every prediction with the underlying feature drivers, not just a score
+Pair each root-cause classification with a recommended first-pass fix
+Key Features
+Denial risk prediction — a boosted tree model trained on CMS Medicare provider-service data, tuned with Optuna, returning a 0–100% denial probability
+Risk tiering — predictions are grouped into low, medium, and high risk using optimized probability thresholds
+Root-cause classification — an NLP classifier (TF-IDF and DistilBERT compared) maps denial remark text to an X12 RARC-style taxonomy
+Explainability — SHAP-based top feature drivers for every denial risk prediction
+First-pass remediation — each root-cause classification comes with a recommended fix and confidence score
+FastAPI + Streamlit — a live API backend and an interactive dashboard for entering claim details and reviewing results
+Benefit
+Fewer denials reach submission — flagging high-risk claims beforehand lets billing teams intervene before revenue is lost
+Faster root-cause resolution — denial remarks are automatically routed to the right operational category instead of being triaged manually
+Actionable, not just predictive — every output comes with a recommended fix, so teams know what to do next, not just what went wrong
+Transparent decisions — SHAP-based explainability means risk scores can be justified and trusted rather than treated as a black box
+Scales across claim volume — a live API and dashboard let the same pipeline support high claim throughput without added manual review effort
+Application Screenshots
 <div align="center">
+Claim Denial Predictor — Input
 
-### Claim Denial Predictor — Input
-*Provider info, utilization sliders, denial remark text, and risk flags feed the model.*
+Provider info, utilization sliders, denial remark text, and risk flags feed the model.
 
 <img src="predictor-empty.png" alt="Claim Denial Predictor Input" width="720" />
 
 <br /><br />
 
-### Claim Denial Predictor — Result
-*Denial probability gauge, risk tier, and root-cause classification with a recommended fix.*
+Claim Denial Predictor — Result
 
-<img src="predictor-result.png" alt="Claim Denial Predictor Result" width="720" />
+Denial probability gauge, risk tier, and root-cause classification with a recommended fix.
 
-</div>
-
----
-
-## Project Structure
-
-```
-.
-├── app/                 FastAPI service and Streamlit dashboard
-├── src/                 ML, and NLP pipeline scripts
-├── reports/             EDA, cleaning, feature, and modeling summary CSVs
-├── outputs/              Lightweight NLP datasets, metrics, and charts
-├── docs/                 Model cards, target definition, and full report
-├── scripts/              Small helper scripts and API smoke tests
-├── run_pipeline.ps1      Runs the full project pipeline
-├── run_app.ps1           Starts the API and dashboard
-├── setup_project.ps1     Creates environment and installs requirements
-├── requirements.txt
-└── README.md
-```
-
-Large raw data files, trained model binaries, virtual environments, and generated heavy artifacts are intentionally excluded so the repository stays clean.
-
----
-
-## Data Sources
-
-- CMS Medicare Physician & Other Practitioners by Provider and Service public use data
-- X12 Remittance Advice Remark Code descriptions
-- Synthetic RARC-style denial text generated from the documented taxonomy
+<img src="predictor-result.png" alt="Claim Denial Predictor Result" width="720" /> </div>
+Data Sources
+CMS Medicare Physician & Other Practitioners by Provider and Service public use data
+X12 Remittance Advice Remark Code descriptions
+Synthetic RARC-style denial text generated from the documented taxonomy
 
 No PHI or patient-level records are used.
 
----
+Pipeline
 
-## Pipeline
+Data preprocessing: loads and profiles the raw CMS data, audits nulls and duplicates, cleans and encodes it, and defines the denial proxy target.
 
-**Data preprocessing**: loads and profiles the raw CMS data, audits nulls and duplicates, cleans and encodes it, and defines the denial proxy target.
+Denial risk modeling: train/validation/test split, class imbalance handling, baseline vs. boosted tree comparison, Optuna tuning, threshold review, SHAP-style feature importance, and a bias/overfit audit.
 
-**Denial risk modeling**: train/validation/test split, class imbalance handling, baseline vs. boosted tree comparison, Optuna tuning, threshold review, SHAP-style feature importance, and a bias/overfit audit.
-
-**Root-cause NLP pipeline** : builds the RARC-style taxonomy and synthetic training text, then trains and compares TF-IDF and DistilBERT classifiers.
-
----
+Root-cause NLP pipeline: builds the RARC-style taxonomy and synthetic training text, then trains and compares TF-IDF and DistilBERT classifiers.
