@@ -2,8 +2,14 @@
 
 # Claim Denial Prediction and Root Cause Classifier
 
-An end-to-end healthcare Revenue Cycle Management system that predicts claim denial risk and classifies denial remark text into operational root-cause categories.
 
+<p align="center">
+  ## Live Demo
+  <a href="https://claim-denial-prediction-root-cause-nine.vercel.app/">
+    <strong>Live Demo</strong>
+  </a>
+</p>
+---
 
 ![Claim Denial Prediction Workflow](workflow-diagram.png)
 
@@ -18,14 +24,7 @@ Healthcare billing teams lose time and revenue when claims are denied after subm
 It combines structured CMS Medicare provider-service data with an X12 RARC-style NLP dataset, so billing teams can flag high-risk claims and route denial reasons to the right team before they become a loss.
 
 ---
-## Live Demo
 
-<p align="center">
-  <a href="https://claim-denial-prediction-root-cause-nine.vercel.app/">
-    <strong>Live Demo</strong>
-  </a>
-</p>
----
 ## Key Features
 
 - **Denial risk prediction** — a boosted tree model trained on CMS Medicare provider-service data, tuned with Optuna, returning a 0–100% denial probability
